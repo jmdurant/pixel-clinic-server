@@ -12,6 +12,23 @@
 const SEXKIT_MCP_URL = "http://localhost:8081/mcp";
 const PORT = 3333;
 
+// Load API key from .mcp.json if not in env
+function loadApiKey() {
+  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const mcpPath = path.resolve(__dirname, "../.mcp.json");
+    const mcp = JSON.parse(fs.readFileSync(mcpPath, "utf8"));
+    // Check visit-tuner-claude env first (has the Anthropic key)
+    const key = mcp.mcpServers?.["visit-tuner-claude"]?.env?.AI_API_KEY
+             || mcp.mcpServers?.sexkit?.env?.ANTHROPIC_API_KEY;
+    if (key && !key.startsWith("YOUR_")) return key;
+  } catch {}
+  return "";
+}
+const ANTHROPIC_API_KEY = loadApiKey();
+
 // ── Agent Definitions ──
 
 const AGENTS = {
@@ -142,10 +159,9 @@ async function callAgent(agentId, userMessage) {
   agent.currentTask = `Processing: "${userMessage.slice(0, 50)}..."`;
   broadcastState();
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!ANTHROPIC_API_KEY) {
     agent.status = "error";
-    return "ANTHROPIC_API_KEY not set";
+    return "No Anthropic API key found (check .mcp.json or ANTHROPIC_API_KEY env)";
   }
 
   agent.messages.push({ role: "user", content: userMessage });
@@ -155,7 +171,7 @@ async function callAgent(agentId, userMessage) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
+        "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
@@ -239,6 +255,7 @@ const server = Bun.serve({
 });
 
 console.log(`\n  SexKit Clinic Dashboard`);
+console.log(`  API Key: ${ANTHROPIC_API_KEY ? "loaded from " + (process.env.ANTHROPIC_API_KEY ? "env" : ".mcp.json") : "NOT FOUND"}`);
 console.log(`  http://localhost:${PORT}\n`);
 console.log(`  Agents:`);
 for (const [id, agent] of Object.entries(AGENTS)) {
