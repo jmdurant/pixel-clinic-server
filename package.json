@@ -1,0 +1,12 @@
+{
+  "name": "sexkit-clinic-dashboard",
+  "version": "1.0.0",
+  "description": "Pixel art clinic visualization for SexKit multi-agent office",
+  "scripts": {
+    "start": "bun run server.js",
+    "dev": "bun --watch run server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest"
+  }
+}
