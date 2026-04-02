@@ -224,6 +224,20 @@ const server = Bun.serve({
       return Response.json({ response });
     }
 
+    // API: receive events from visit-tuner MCP
+    if (url.pathname === "/api/event" && req.method === "POST") {
+      const { agent, status, task, message } = await req.json();
+      if (clinicState.agents[agent]) {
+        clinicState.agents[agent].status = status || "idle";
+        clinicState.agents[agent].currentTask = task || null;
+        if (message) {
+          addEvent(agent, message.slice(0, 80));
+        }
+        broadcastState();
+      }
+      return Response.json({ ok: true });
+    }
+
     // API: get state
     if (url.pathname === "/api/state") {
       return Response.json(clinicState);
