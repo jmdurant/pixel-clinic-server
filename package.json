@@ -1,12 +1,33 @@
 {
-  "name": "sexkit-clinic-dashboard",
-  "version": "1.0.0",
-  "description": "Pixel art clinic visualization for SexKit multi-agent office",
+  "name": "pixel-agents-standalone",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "start": "bun run server.js",
-    "dev": "bun --watch run server.js"
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:ui\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:ui": "cd webview-ui && npx vite",
+    "build": "npm run build:server && npm run build:ui",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:chokidar --external:ws --external:express --external:pngjs",
+    "build:ui": "cd webview-ui && npx vite build --outDir ../dist/public && cp -r public/assets ../dist/public/assets",
+    "start": "node dist/server.js",
+    "import-tileset": "tsx scripts/import-tileset.ts",
+    "extract-furniture": "tsx scripts/extract-furniture.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "latest"
+    "chokidar": "^4.0.0",
+    "express": "^5.0.0",
+    "pngjs": "^7.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/pngjs": "^6.0.5",
+    "@types/ws": "^8.5.0",
+    "concurrently": "^9.0.0",
+    "esbuild": "^0.27.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0"
   }
 }
