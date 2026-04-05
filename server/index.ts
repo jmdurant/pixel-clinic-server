@@ -253,11 +253,11 @@ app.post("/api/clinic/flow", (req, res) => {
   // Named flow actions map to agent moves
   const flows: Record<string, { agent: string; seatId: string; description: string }> = {
     // Intern presents to Chief Resident
-    "intern_to_chief_resident": { agent: "intern", seatId: "cr-chair", description: "Intern walks to Chief Resident to present findings" },
-    "intern_to_attending": { agent: "intern", seatId: "att-chair", description: "Intern walks to Attending to present (no chief resident configured)" },
+    "intern_to_chief_resident": { agent: "intern", seatId: "cr-chair-visitor", description: "Intern walks to Chief Resident to present findings" },
+    "intern_to_attending": { agent: "intern", seatId: "att-chair-visitor", description: "Intern walks to Attending to present (no chief resident configured)" },
     "intern_return": { agent: "intern", seatId: "exam1-chair-doc", description: "Intern returns to exam room" },
     // Chief Resident presents to Attending
-    "chief_resident_to_attending": { agent: "chief_resident", seatId: "att-chair", description: "Chief Resident walks to Attending office to present" },
+    "chief_resident_to_attending": { agent: "chief_resident", seatId: "att-chair-visitor", description: "Chief Resident walks to Attending office to present" },
     "chief_resident_return": { agent: "chief_resident", seatId: "cr-chair", description: "Chief Resident returns to office" },
     // Chief Resident talks to Patient
     "chief_resident_to_patient": { agent: "chief_resident", seatId: "entry-chair-patient", description: "Chief Resident walks to patient" },
