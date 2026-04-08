@@ -84,6 +84,8 @@ const CLINIC_AGENT_NAMES: Record<string, string> = {
   admin: "Clinical Admin",
   therapist: "JOY — Therapist",
   nurse: "Clinical Nurse",
+  hr: "HR",
+  it: "IT",
 };
 const CLINIC_SEATS: Record<string, { palette: number; hueShift: number; seatId: string }> = {
   receptionist: { palette: 0, hueShift: 180, seatId: "recep-chair" },
@@ -93,6 +95,8 @@ const CLINIC_SEATS: Record<string, { palette: number; hueShift: number; seatId: 
   admin:        { palette: 3, hueShift: 45,  seatId: "admin-chair" },    // top-right (across from exams)
   therapist:    { palette: 5, hueShift: 330, seatId: "therapy-chair-2" },
   nurse:        { palette: 1, hueShift: 60,  seatId: "nurse-chair" },        // bottom-center
+  hr:           { palette: 3, hueShift: 270, seatId: "hr-chair" },          // bottom-left (HR room)
+  it:           { palette: 0, hueShift: 190, seatId: "it-chair" },          // bottom-right (IT room)
   patient:      { palette: 4, hueShift: 200, seatId: "entry-chair-patient" },
 };
 
