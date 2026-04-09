@@ -405,27 +405,32 @@ function broadcast(msg: ServerMessage): void {
 }
 
 function sendInitialData(ws: WebSocket): void {
+  console.log(`[WS] sendInitialData starting`);
+  function logSend(label: string, payload: string) {
+    console.log(`[WS] → ${label}: ${payload.length} bytes`);
+    ws.send(payload);
+  }
   // Send settings
-  ws.send(JSON.stringify({ type: "settingsLoaded", soundEnabled: false }));
+  logSend('settingsLoaded', JSON.stringify({ type: "settingsLoaded", soundEnabled: false }));
 
   // Send character sprites
   if (characterSprites) {
-    ws.send(JSON.stringify({ type: "characterSpritesLoaded", characters: characterSprites.characters }));
+    logSend('characterSpritesLoaded', JSON.stringify({ type: "characterSpritesLoaded", characters: characterSprites.characters }));
   }
 
   // Send wall tiles
   if (wallTiles) {
-    ws.send(JSON.stringify({ type: "wallTilesLoaded", sprites: wallTiles.sprites }));
+    logSend('wallTilesLoaded', JSON.stringify({ type: "wallTilesLoaded", sprites: wallTiles.sprites }));
   }
 
   // Send floor tiles (optional)
   if (floorTiles) {
-    ws.send(JSON.stringify({ type: "floorTilesLoaded", sprites: floorTiles.sprites }));
+    logSend('floorTilesLoaded', JSON.stringify({ type: "floorTilesLoaded", sprites: floorTiles.sprites }));
   }
 
   // Send furniture assets (optional)
   if (furnitureAssets) {
-    ws.send(
+    logSend('furnitureAssetsLoaded',
       JSON.stringify({
         type: "furnitureAssetsLoaded",
         catalog: furnitureAssets.catalog,
@@ -457,21 +462,27 @@ function sendInitialData(ws: WebSocket): void {
       agentMeta[a.id] = { palette: s.palette, hueShift: s.hueShift, seatId: s.seatId ?? undefined };
     }
   }
-  ws.send(JSON.stringify({ type: "existingAgents", agents: agentIds, folderNames, agentMeta }));
+  logSend('existingAgents', JSON.stringify({ type: "existingAgents", agents: agentIds, folderNames, agentMeta }));
 
   // Send layout (must come after existingAgents — the hook buffers agents until layout arrives)
   if (currentLayout) {
-    ws.send(JSON.stringify({ type: "layoutLoaded", layout: currentLayout, version: 1 }));
+    logSend('layoutLoaded', JSON.stringify({ type: "layoutLoaded", layout: currentLayout, version: 1 }));
   } else {
     // Send null layout to trigger default layout creation in the UI
-    ws.send(JSON.stringify({ type: "layoutLoaded", layout: null, version: 0 }));
+    logSend('layoutLoaded(null)', JSON.stringify({ type: "layoutLoaded", layout: null, version: 0 }));
   }
+  console.log(`[WS] sendInitialData done`);
 }
 
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
   (ws as unknown as Record<string, boolean>).__isAlive = true;
   ws.on("pong", () => { (ws as unknown as Record<string, boolean>).__isAlive = true; });
   clients.add(ws);
+  console.log(`[WS] Client connected from ${req.socket.remoteAddress} (total: ${clients.size})`);
+
+  ws.on("close", () => {
+    console.log(`[WS] Client disconnected (total: ${clients.size - 1})`);
+  });
 
   ws.on("message", (raw) => {
     try {
