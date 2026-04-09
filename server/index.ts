@@ -161,6 +161,9 @@ app.post("/api/event", (req, res) => {
   tracked.activity = activity;
   tracked.lastActivityTime = Date.now();
 
+  // Track activity for /api/clinic/state queries
+  currentActivity[agentKey] = { status, task, updatedAt: Date.now() };
+
   if (status === "thinking" && task) {
     // Show as tool use (appears as speech bubble)
     const toolId = `clinic-${Date.now()}`;
@@ -237,11 +240,23 @@ app.post("/api/clinic/lock-seats", (_req, res) => {
 });
 
 // Move any clinic agent to a specific seat (with walking animation)
+// Current seat tracking — populated from CLINIC_SEATS at startup, updated by moves.
+// Agents can read this via GET /api/clinic/state to know where everyone is.
+const currentSeats: Record<string, string> = {};
+for (const [key, seat] of Object.entries(CLINIC_SEATS)) {
+  currentSeats[key] = seat.seatId;
+}
+// Track activity per agent key (separate from TrackedAgent which is keyed by sessionId)
+const currentActivity: Record<string, { status: string; task?: string; updatedAt: number }> = {};
+
 app.post("/api/clinic/move", (req, res) => {
   const { agent: agentKey, seatId } = req.body;
   const key = agentKey || "patient";
   const clinicAgent = CLINIC_AGENTS[key];
   if (!clinicAgent) return res.status(400).json({ error: `agent '${key}' not initialized` });
+
+  // Track the new position
+  currentSeats[key] = seatId;
 
   // Broadcast clinicMoveSeat — the UI's useExtensionMessages handler
   // calls officeState.reassignSeat() which pathfinds and walks the character
@@ -249,6 +264,27 @@ app.post("/api/clinic/move", (req, res) => {
   console.log(`[Clinic] Moving ${key} (id=${clinicAgent.id}) to seat ${seatId}`);
 
   res.json({ ok: true, agentId: clinicAgent.id, seatId });
+});
+
+// State endpoint — returns current positions, activity, and pending activity for all clinic agents.
+// MCP agents query this via the iPhone's pixel://clinic/state resource.
+app.get("/api/clinic/state", (_req, res) => {
+  const agents: Record<string, any> = {};
+  for (const [key, def] of Object.entries(CLINIC_AGENTS)) {
+    agents[key] = {
+      id: def.id,
+      name: def.name,
+      currentSeat: currentSeats[key] ?? null,
+      assignedSeat: CLINIC_SEATS[key]?.seatId ?? null,
+      activity: currentActivity[key] ?? { status: "idle", updatedAt: 0 },
+    };
+  }
+  res.json({
+    ok: true,
+    timestamp: Date.now(),
+    agents,
+    seats: Object.values(CLINIC_SEATS).map(s => s.seatId),
+  });
 });
 
 // Clinical flow routes — named moves for the visit lifecycle
@@ -285,6 +321,9 @@ app.post("/api/clinic/flow", (req, res) => {
 
   const clinicAgent = CLINIC_AGENTS[flow.agent];
   if (!clinicAgent) return res.status(400).json({ error: `agent '${flow.agent}' not initialized` });
+
+  // Track the new position
+  currentSeats[flow.agent] = flow.seatId;
 
   broadcast({ type: "clinicMoveSeat", id: clinicAgent.id, seatId: flow.seatId } as any);
   console.log(`[Clinic Flow] ${action}: ${flow.description}`);
