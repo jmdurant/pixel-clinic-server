@@ -405,32 +405,27 @@ function broadcast(msg: ServerMessage): void {
 }
 
 function sendInitialData(ws: WebSocket): void {
-  console.log(`[WS] sendInitialData starting`);
-  function logSend(label: string, payload: string) {
-    console.log(`[WS] → ${label}: ${payload.length} bytes`);
-    ws.send(payload);
-  }
   // Send settings
-  logSend('settingsLoaded', JSON.stringify({ type: "settingsLoaded", soundEnabled: false }));
+  ws.send(JSON.stringify({ type: "settingsLoaded", soundEnabled: false }));
 
   // Send character sprites
   if (characterSprites) {
-    logSend('characterSpritesLoaded', JSON.stringify({ type: "characterSpritesLoaded", characters: characterSprites.characters }));
+    ws.send(JSON.stringify({ type: "characterSpritesLoaded", characters: characterSprites.characters }));
   }
 
   // Send wall tiles
   if (wallTiles) {
-    logSend('wallTilesLoaded', JSON.stringify({ type: "wallTilesLoaded", sprites: wallTiles.sprites }));
+    ws.send(JSON.stringify({ type: "wallTilesLoaded", sprites: wallTiles.sprites }));
   }
 
   // Send floor tiles (optional)
   if (floorTiles) {
-    logSend('floorTilesLoaded', JSON.stringify({ type: "floorTilesLoaded", sprites: floorTiles.sprites }));
+    ws.send(JSON.stringify({ type: "floorTilesLoaded", sprites: floorTiles.sprites }));
   }
 
   // Send furniture assets (optional)
   if (furnitureAssets) {
-    logSend('furnitureAssetsLoaded',
+    ws.send(
       JSON.stringify({
         type: "furnitureAssetsLoaded",
         catalog: furnitureAssets.catalog,
@@ -462,16 +457,15 @@ function sendInitialData(ws: WebSocket): void {
       agentMeta[a.id] = { palette: s.palette, hueShift: s.hueShift, seatId: s.seatId ?? undefined };
     }
   }
-  logSend('existingAgents', JSON.stringify({ type: "existingAgents", agents: agentIds, folderNames, agentMeta }));
+  ws.send(JSON.stringify({ type: "existingAgents", agents: agentIds, folderNames, agentMeta }));
 
   // Send layout (must come after existingAgents — the hook buffers agents until layout arrives)
   if (currentLayout) {
-    logSend('layoutLoaded', JSON.stringify({ type: "layoutLoaded", layout: currentLayout, version: 1 }));
+    ws.send(JSON.stringify({ type: "layoutLoaded", layout: currentLayout, version: 1 }));
   } else {
     // Send null layout to trigger default layout creation in the UI
-    logSend('layoutLoaded(null)', JSON.stringify({ type: "layoutLoaded", layout: null, version: 0 }));
+    ws.send(JSON.stringify({ type: "layoutLoaded", layout: null, version: 0 }));
   }
-  console.log(`[WS] sendInitialData done`);
 }
 
 wss.on("connection", (ws, req) => {
