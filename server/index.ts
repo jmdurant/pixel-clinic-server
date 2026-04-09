@@ -2,9 +2,10 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { join, dirname } from "path";
-import { homedir } from "os";
+import { homedir, hostname } from "os";
 import { fileURLToPath } from "url";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { Bonjour } from "bonjour-service";
 import { JsonlWatcher, type WatchedFile } from "./watcher.js";
 import { processTranscriptLine } from "./parser.js";
 import {
@@ -534,10 +535,32 @@ watcher.on("line", (file: WatchedFile, line: string) => {
 
 // Start
 watcher.start();
+
+// Bonjour publication — lets iOS app and other viewers auto-discover the hub.
+// Service type _pixel-clinic._tcp matches what NWBrowser looks for in PixelClinicService.swift.
+const bonjour = new Bonjour();
+const bonjourService = bonjour.publish({
+  name: `Pixel Clinic on ${hostname()}`,
+  type: "pixel-clinic",
+  port: PORT,
+  txt: { version: "1", path: "/api/clinic" },
+});
+
 server.listen(PORT, () => {
   console.log(`Pixel Agents server running at http://localhost:${PORT}`);
+  console.log(`Bonjour: published _pixel-clinic._tcp on port ${PORT}`);
   console.log(`Watching ~/.claude/projects/ for active sessions...`);
 });
+
+// Clean up Bonjour on shutdown
+const shutdown = () => {
+  console.log("[Server] Shutting down — unpublishing Bonjour");
+  try { bonjourService.stop?.(); } catch {}
+  try { bonjour.destroy(); } catch {}
+  process.exit(0);
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 // Idle shutdown
 setInterval(() => {
