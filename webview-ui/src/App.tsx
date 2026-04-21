@@ -14,6 +14,9 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard.js'
 import { ZoomControls } from './components/ZoomControls.js'
 import { BottomToolbar } from './components/BottomToolbar.js'
 import { DebugView } from './components/DebugView.js'
+import { ActionsBar } from './components/ActionsBar.js'
+import { CommandStatusPanel } from './components/CommandStatusPanel.js'
+import { useClinicCommands } from './hooks/useClinicCommands.js'
 
 // Game state lives outside React — updated imperatively by message handlers
 const officeStateRef = { current: null as OfficeState | null }
@@ -127,6 +130,8 @@ function App() {
 
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), [])
 
+  const clinicCommands = useClinicCommands()
+
   const handleSelectAgent = useCallback((id: number) => {
     vscode.postMessage({ type: 'focusAgent', id })
   }, [])
@@ -230,6 +235,17 @@ function App() {
         isDebugMode={isDebugMode}
         onToggleDebugMode={handleToggleDebugMode}
         workspaceFolders={workspaceFolders}
+      />
+
+      <ActionsBar
+        anyRunning={clinicCommands.anyRunning}
+        activeCount={clinicCommands.activeCount}
+        onRun={clinicCommands.run}
+      />
+
+      <CommandStatusPanel
+        runs={clinicCommands.runs}
+        onCancel={clinicCommands.cancel}
       />
 
       {editor.isEditMode && editor.isDirty && (

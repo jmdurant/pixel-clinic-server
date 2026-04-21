@@ -5,6 +5,8 @@ import { join, dirname } from "path";
 import { homedir, hostname } from "os";
 import { fileURLToPath } from "url";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
+import { randomUUID } from "crypto";
 import { Bonjour } from "bonjour-service";
 import { JsonlWatcher, type WatchedFile } from "./watcher.js";
 import { processTranscriptLine } from "./parser.js";
@@ -466,6 +468,173 @@ function sendInitialData(ws: WebSocket): void {
     // Send null layout to trigger default layout creation in the UI
     ws.send(JSON.stringify({ type: "layoutLoaded", layout: null, version: 0 }));
   }
+
+  // Replay any in-flight or recently completed clinic runs so late-joiners see them.
+  const runs = listClinicRuns();
+  if (runs.length > 0) {
+    ws.send(JSON.stringify({ type: "clinicCommandList", runs }));
+    // Send tails for any currently running commands so the status panel can
+    // re-hydrate scroll content without re-running.
+    for (const r of clinicRuns.values()) {
+      if (r.tail) {
+        ws.send(JSON.stringify({
+          type: "clinicCommandStatus",
+          runId: r.runId,
+          stream: "stdout",
+          chunk: r.tail,
+          replay: true,
+        }));
+      }
+    }
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Clinic-command runner
+//
+// Spawns `claude -p "<slash command> <args>"` in headless print mode against
+// a fixed clinic workspace (env CLINIC_CLI_CWD, default /Users/jamesdurant/SexKit).
+//
+// Protocol (all broadcast to every connected client so multi-tab stays in sync):
+//
+//   UI → server
+//     { type: "runClinicCommand",    command: "/clinic-day-run", args?: "--dry-run" }
+//     { type: "cancelClinicCommand", runId: "<uuid>" }
+//     { type: "listClinicCommands" }
+//
+//   server → UI
+//     { type: "clinicCommandStarted", runId, command, args, pid, startedAt }
+//     { type: "clinicCommandStatus",  runId, stream: "stdout"|"stderr", chunk: "..." }
+//     { type: "clinicCommandDone",    runId, exitCode, durationMs }
+//     { type: "clinicCommandList",    runs: [{ runId, command, args, startedAt, running, exitCode? }] }
+//
+// All outbound clinic comms from these runs land in the attending review queue
+// (subagents never auto-send to real patients) — the UI is just a convenience
+// trigger. Safety gating lives in the slash commands themselves.
+// ────────────────────────────────────────────────────────────────────────────
+
+const CLINIC_CLI_CWD   = process.env.CLINIC_CLI_CWD   || "/Users/jamesdurant/SexKit";
+const CLINIC_CLI_BIN   = process.env.CLINIC_CLI_BIN   || "claude";
+const CLINIC_OUT_BYTES = 256_000; // cap per-run in-memory tail to 256 KB
+
+interface ClinicRun {
+  runId: string;
+  command: string;
+  args: string;
+  startedAt: number;
+  proc: ChildProcessWithoutNullStreams;
+  tail: string; // last N bytes of combined stdout/stderr for late subscribers
+  running: boolean;
+  exitCode: number | null;
+}
+
+const clinicRuns = new Map<string, ClinicRun>();
+
+function broadcastClinic(msg: Record<string, unknown>): void {
+  const data = JSON.stringify(msg);
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  }
+}
+
+function startClinicCommand(rawCommand: string, rawArgs: string): ClinicRun | null {
+  // Sanity: only accept /clinic-* and /scenario-run for now. Keeps the
+  // surface tight — this endpoint doesn't need to be a general shell.
+  const command = String(rawCommand || "").trim();
+  if (!/^\/(clinic-[a-z0-9-]+|scenario-run)$/i.test(command)) {
+    console.warn(`[clinic] rejected command: ${command}`);
+    return null;
+  }
+  const args = String(rawArgs || "").trim();
+
+  // Compose a single slash-command string for claude -p. We escape by passing
+  // it as one argv element; spawn handles shell quoting correctly (no shell).
+  const slashInput = args ? `${command} ${args}` : command;
+  const proc = spawn(CLINIC_CLI_BIN, ["-p", slashInput], {
+    cwd: CLINIC_CLI_CWD,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  const runId = randomUUID();
+  const run: ClinicRun = {
+    runId,
+    command,
+    args,
+    startedAt: Date.now(),
+    proc,
+    tail: "",
+    running: true,
+    exitCode: null,
+  };
+  clinicRuns.set(runId, run);
+
+  broadcastClinic({
+    type: "clinicCommandStarted",
+    runId,
+    command,
+    args,
+    pid: proc.pid,
+    startedAt: run.startedAt,
+  });
+
+  const appendTail = (chunk: string): void => {
+    run.tail = (run.tail + chunk).slice(-CLINIC_OUT_BYTES);
+  };
+
+  proc.stdout.on("data", (buf: Buffer) => {
+    const chunk = buf.toString("utf8");
+    appendTail(chunk);
+    broadcastClinic({ type: "clinicCommandStatus", runId, stream: "stdout", chunk });
+  });
+  proc.stderr.on("data", (buf: Buffer) => {
+    const chunk = buf.toString("utf8");
+    appendTail(chunk);
+    broadcastClinic({ type: "clinicCommandStatus", runId, stream: "stderr", chunk });
+  });
+  proc.on("error", (err) => {
+    const chunk = `[spawn error] ${err.message}\n`;
+    appendTail(chunk);
+    broadcastClinic({ type: "clinicCommandStatus", runId, stream: "stderr", chunk });
+  });
+  proc.on("exit", (code, signal) => {
+    run.running = false;
+    run.exitCode = code ?? (signal ? 130 : 0);
+    broadcastClinic({
+      type: "clinicCommandDone",
+      runId,
+      exitCode: run.exitCode,
+      durationMs: Date.now() - run.startedAt,
+    });
+    // Keep the run in memory so late-joiners can still see it via
+    // clinicCommandList — but trim after an hour so we don't leak.
+    setTimeout(() => clinicRuns.delete(runId), 3_600_000);
+  });
+
+  return run;
+}
+
+function cancelClinicCommand(runId: string): boolean {
+  const run = clinicRuns.get(runId);
+  if (!run || !run.running) return false;
+  run.proc.kill("SIGTERM");
+  // Force-kill 5s later if it didn't exit cleanly.
+  setTimeout(() => {
+    if (run.running) run.proc.kill("SIGKILL");
+  }, 5_000);
+  return true;
+}
+
+function listClinicRuns(): Array<Record<string, unknown>> {
+  return Array.from(clinicRuns.values()).map((r) => ({
+    runId: r.runId,
+    command: r.command,
+    args: r.args,
+    startedAt: r.startedAt,
+    running: r.running,
+    exitCode: r.exitCode,
+  }));
 }
 
 wss.on("connection", (ws, req) => {
@@ -520,6 +689,23 @@ wss.on("connection", (ws, req) => {
         } catch (err) {
           console.error(`[Server] Failed to save agent seats: ${err instanceof Error ? err.message : err}`);
         }
+      } else if (msg.type === "runClinicCommand") {
+        const run = startClinicCommand(
+          String(msg.command ?? ""),
+          String(msg.args ?? ""),
+        );
+        if (!run) {
+          ws.send(JSON.stringify({
+            type: "clinicCommandStatus",
+            runId: "rejected",
+            stream: "stderr",
+            chunk: `Rejected command "${msg.command}" — only /clinic-* and /scenario-run are accepted.\n`,
+          }));
+        }
+      } else if (msg.type === "cancelClinicCommand") {
+        cancelClinicCommand(String(msg.runId ?? ""));
+      } else if (msg.type === "listClinicCommands") {
+        ws.send(JSON.stringify({ type: "clinicCommandList", runs: listClinicRuns() }));
       }
     } catch {
       /* ignore invalid messages */
