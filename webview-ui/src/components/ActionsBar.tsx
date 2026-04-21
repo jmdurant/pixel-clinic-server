@@ -34,6 +34,8 @@ const BASELINE_MENU: MenuItem[] = [
   { label: 'Arc A only — new patient',   command: '/clinic-day-run', args: '--arc=A' },
   { label: 'Arc B only — follow-up',     command: '/clinic-day-run', args: '--arc=B' },
   { label: 'Arc C only — referral loop', command: '/clinic-day-run', args: '--arc=C' },
+  { label: 'Simulate 3 clinic days',     command: '/clinic-day-run', args: '--days=3', hint: 'needs SIMCLINIC_MODE' },
+  { label: 'Simulate 7 clinic days',     command: '/clinic-day-run', args: '--days=7', hint: 'needs SIMCLINIC_MODE' },
 ]
 
 const SCENARIO_MENU: MenuItem[] = [
