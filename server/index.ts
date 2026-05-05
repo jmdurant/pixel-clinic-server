@@ -84,16 +84,17 @@ const CLINIC_AGENT_NAMES: Record<string, string> = {
   intern: "Clinical Intern",
   chief_resident: "Chief Resident",
   attending: "Attending",
-  admin: "Clinical Admin",
+  admin: "Admin",
   therapist: "JOY — Therapist",
   nurse: "Clinical Nurse",
   hr: "HR",
   it: "IT",
+  sim_referring_provider: "External Provider (sim)",
   scheduler: "Scheduler",
-  referral_coordinator: "Referral Coordinator",
+  referral_coordinator: "Referrals",
   coder: "Coder",
-  dx_synthesizer: "Dx Synthesizer",
-  screening_cma: "Screening CMA",
+  dx_synthesizer: "Dx Synth",
+  screening_cma: "CMA",
   telehealth_facilitator: "Telehealth Facilitator",
   psychometrist: "Psychometrist",
 };
@@ -133,15 +134,21 @@ const CLINIC_SEATS: Record<string, { palette: number; hueShift: number; seatId: 
   // administration.
   screening_cma: { palette: 1, hueShift: 0,   seatId: "exam2-chair-doc" },
   // Telehealth Facilitator — patient-facing real-time video session
-  // admin (TELE-ASD-PEDS). Reuses the otherwise-unused therapy-chair-1
-  // (same room as the therapist's chair-2; video setup already there,
-  // both can work the room).
-  telehealth_facilitator: { palette: 5, hueShift: 60,  seatId: "therapy-chair-1" },
+  // admin (TELE-ASD-PEDS). Sits at tf-chair, far right of the IT room
+  // — clusters with IT (the practice's tech/AV ops zone). Frees up
+  // therapy-chair-1 for back-up therapist seating.
+  telehealth_facilitator: { palette: 5, hueShift: 60,  seatId: "tf-chair" },
   // Psychometrist — scores CARS-QPC + TELE-ASD-PEDS + future Vineland.
-  // Sits at psych-chair (col=18 row=18) in the back of the therapy
-  // room — the "scoring desk" position. Cluster sibling to the
-  // telehealth-facilitator (chair-1) and therapist (chair-2).
-  psychometrist: { palette: 5, hueShift: 180, seatId: "psych-chair" },
+  // Shares the exam-2 table with screening-CMA (assessment cluster
+  // siblings). Sits at the existing exam2-chair-patient — no new
+  // furniture; both work side-by-side at the same desk.
+  psychometrist: { palette: 5, hueShift: 180, seatId: "exam2-chair-patient" },
+  // Sim Referring Provider — TEST FIXTURE that role-plays outside PCPs
+  // (sending inbound referral faxes) and specialists (sending eval-
+  // response acks back). Sits in the small detached office connected
+  // to the building via a path off the IT room's east wall — visually
+  // "external practice across the street".
+  sim_referring_provider: { palette: 4, hueShift: 130, seatId: "ext-chair" },
 };
 
 // Init clinic agents FIRST (writes seats file), then load seats
