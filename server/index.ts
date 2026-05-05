@@ -89,6 +89,13 @@ const CLINIC_AGENT_NAMES: Record<string, string> = {
   nurse: "Clinical Nurse",
   hr: "HR",
   it: "IT",
+  scheduler: "Scheduler",
+  referral_coordinator: "Referral Coordinator",
+  coder: "Coder",
+  dx_synthesizer: "Dx Synthesizer",
+  screening_cma: "Screening CMA",
+  telehealth_facilitator: "Telehealth Facilitator",
+  psychometrist: "Psychometrist",
 };
 const CLINIC_SEATS: Record<string, { palette: number; hueShift: number; seatId: string }> = {
   receptionist: { palette: 0, hueShift: 180, seatId: "recep-chair" },
@@ -101,6 +108,40 @@ const CLINIC_SEATS: Record<string, { palette: number; hueShift: number; seatId: 
   hr:           { palette: 3, hueShift: 270, seatId: "hr-chair" },          // bottom-left (HR room)
   it:           { palette: 0, hueShift: 190, seatId: "it-chair" },          // bottom-right (IT room)
   patient:      { palette: 4, hueShift: 200, seatId: "entry-chair-patient" },
+  // Scheduler shares the reception desk — split from receptionist
+  // 2026-05-03 (waitlist + recall sweeps + treatment-plan ladders).
+  // sched-chair (col=1 row=4) sits one seat over from the receptionist
+  // so live-call handoffs land at the scheduler without anyone moving.
+  scheduler:    { palette: 0, hueShift: 200, seatId: "sched-chair" },
+  // Referral Coordinator sits in the admin bullpen, immediately right
+  // of admin-chair. Inbound fax classification + outbound paperwork
+  // are coordination work, not clinical — co-located with admin keeps
+  // the audit identity (`agent_referral_coordinator`) and review-queue
+  // traffic in one zone.
+  referral_coordinator: { palette: 3, hueShift: 90,  seatId: "coord-chair" },
+  // Coder works the post-encounter audit row (codingProposed pnotes).
+  // Admin row 2 (left), back-office billing-adjacent.
+  coder:        { palette: 3, hueShift: 135, seatId: "coder-chair" },
+  // Dx Synthesizer reads psychometrist + screening + chart-review audit
+  // rows and walks DSM-5-TR criteria for candidate dx. Sits next to CR
+  // (cr-chair col=16 row=8 ↔ dx-chair col=18 row=8) as the clinical-
+  // reasoning sibling above the psychometrist cluster.
+  dx_synthesizer: { palette: 2, hueShift: 60,  seatId: "dx-chair" },
+  // Screening CMA — administers PHQ-9, Vanderbilt, SCARED, MCHAT-RF,
+  // SWYC. Patient-facing intake/instrument work; reuses the otherwise-
+  // unused exam2-chair-doc so they have an exam-room context for live
+  // administration.
+  screening_cma: { palette: 1, hueShift: 0,   seatId: "exam2-chair-doc" },
+  // Telehealth Facilitator — patient-facing real-time video session
+  // admin (TELE-ASD-PEDS). Reuses the otherwise-unused therapy-chair-1
+  // (same room as the therapist's chair-2; video setup already there,
+  // both can work the room).
+  telehealth_facilitator: { palette: 5, hueShift: 60,  seatId: "therapy-chair-1" },
+  // Psychometrist — scores CARS-QPC + TELE-ASD-PEDS + future Vineland.
+  // Sits at psych-chair (col=18 row=18) in the back of the therapy
+  // room — the "scoring desk" position. Cluster sibling to the
+  // telehealth-facilitator (chair-1) and therapist (chair-2).
+  psychometrist: { palette: 5, hueShift: 180, seatId: "psych-chair" },
 };
 
 // Init clinic agents FIRST (writes seats file), then load seats
